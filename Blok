@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Block Blast Game</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Roboto:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Sembunyikan scrollbar yang mungkin muncul */
+        }
+        body { 
+            touch-action: none; 
+            user-select: none; 
+            -webkit-user-select: none; 
+            -webkit-tap-highlight-color: transparent; 
+            font-family: 'Roboto', sans-serif; 
+            background-color: #111827; /* Warna latar belakang body jika ada celah */
+        }
+        #game-container {
+             height: 100%;
+             width: 100%;
+        }
+        .font-baloo { font-family: 'Baloo 2', cursive; }
+        .screen {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        #game-screen {
+            justify-content: space-between; /* Distribusikan ruang secara vertikal */
+        }
+        .game-board { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); gap: 3px; background-color: #3b426d; border: 3px solid #3b426d; border-radius: 8px; padding: 3px; aspect-ratio: 1 / 1; box-shadow: inset 0 0 10px rgba(0,0,0,0.3); }
+        .grid-cell { background-color: #1c213a; border-radius: 4px; transition: transform 0.1s ease-out, background-color 0.1s ease-in-out; position: relative; }
+        .grid-cell.drag-over { transform: scale(1.1); background-color: rgba(255, 255, 255, 0.3) !important; }
+        .grid-cell.invalid-placement { transform: scale(1.05); background-color: rgba(255, 50, 50, 0.4) !important; }
+        .piece-wrapper { display: flex; justify-content: center; align-items: center; height: 100%; width: 33%; flex-shrink: 0; }
+        .piece { cursor: grab; display: grid; gap: 2px; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .piece.dragging { position: fixed; pointer-events: none; z-index: 1000; transform: scale(1.1); opacity: 0.8; }
+        .piece-cell { width: 25px; height: 25px; border-radius: 4px; box-shadow: inset 0px 2px 4px rgba(255, 255, 255, 0.5), 0px 2px 3px rgba(0, 0, 0, 0.3); }
+        .clearing { animation: clear-animation 0.4s ease-out forwards; }
+        @keyframes clear-animation { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(0); opacity: 0; } }
+        .modal { transition: opacity 0.3s, visibility 0.3s; }
+        .obstacle-icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.7); font-size: 1.5rem; pointer-events: none; }
+        .level-node { transition: transform 0.2s, box-shadow 0.2s; }
+        .level-node:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body class="flex justify-center items-center">
+
+    <div id="game-container" class="w-full max-w-sm mx-auto">
+
+        <!-- ===== HALAMAN UTAMA / MENU ===== -->
+        <div id="start-screen" class="screen items-center justify-center bg-gradient-to-b from-[#0B3DB9] to-[#2A7ED1] p-6">
+            <h1 class="font-baloo text-7xl font-extrabold text-white text-center" style="text-shadow: 3px 3px 0 #00000040;">
+                <span class="text-orange-400">B</span><span class="text-red-500">L<i class="fas fa-crown text-yellow-300 -ml-4 -mt-6 text-4xl absolute"></i>CK</span>
+                <span class="text-purple-500">BL</span><span class="text-green-400">A</span><span class="text-blue-400">ST</span>
+            </h1>
+            <div class="mt-20 mb-16">
+                <div class="grid grid-cols-3 gap-1 w-min">
+                    <div class="col-start-2 w-6 h-6 bg-yellow-400 rounded-md shadow-lg"></div><div class="w-6 h-6 bg-yellow-400 rounded-md shadow-lg"></div><div class="w-6 h-6 bg-yellow-400 rounded-md shadow-lg"></div><div class="w-6 h-6 bg-yellow-400 rounded-md shadow-lg"></div>
+                </div>
+            </div>
+            <button id="start-classic-btn" class="w-full max-w-xs bg-[#2AC1A7] hover:bg-[#25a892] text-white font-bold text-xl rounded-lg py-3 flex items-center justify-center gap-3 shadow-lg transition-transform transform hover:scale-105">
+                <i class="fas fa-infinity text-white text-2xl"></i><span>Classic</span>
+            </button>
+            <button id="start-adventure-btn" class="mt-6 w-full max-w-xs bg-[#F59C1A] hover:bg-[#d9860f] text-white font-bold text-xl rounded-lg py-3 flex items-center justify-center gap-3 shadow-lg transition-transform transform hover:scale-105">
+                <i class="fas fa-map-marker-alt text-white text-2xl"></i><span>Adventure</span>
+            </button>
+        </div>
+
+        <!-- ===== HALAMAN PETA ADVENTURE ===== -->
+        <div id="adventure-map-screen" class="screen hidden items-center bg-gradient-to-b from-[#2E7D32] to-[#004D40] p-6">
+            <div class="w-full flex-shrink-0 flex justify-between items-center mb-6">
+                 <button id="back-to-menu-btn" class="text-white text-2xl p-2 rounded-full hover:bg-white/20 transition"><i class="fas fa-arrow-left"></i></button>
+                 <h1 class="font-baloo text-4xl text-white">Pilih Level</h1>
+                 <div class="w-10"></div>
+            </div>
+            <div id="level-grid" class="grid grid-cols-3 gap-4 w-full overflow-y-auto">
+            </div>
+        </div>
+
+
+        <!-- ===== HALAMAN PERMAINAN (STRUKTUR BARU) ===== -->
+        <div id="game-screen" class="screen hidden bg-gradient-to-b from-[#4B6CB7] to-[#182848] p-4">
+            <!-- Bagian Atas: HUD (Tidak akan menciut) -->
+            <div class="flex-shrink-0">
+                <div class="w-full flex justify-between items-center mb-2">
+                    <div id="game-hud-left" class="flex items-center space-x-2"></div>
+                    <button id="back-to-map-btn" class="hidden text-white text-2xl p-2 rounded-full hover:bg-white/20 transition"><i class="fas fa-map"></i></button>
+                </div>
+                <div id="game-hud-main" class="text-white font-baloo font-extrabold text-6xl mb-2 text-center"></div>
+            </div>
+
+            <!-- Bagian Tengah: Papan (Akan mengisi sisa ruang) -->
+            <div class="flex-grow flex items-center justify-center min-h-0">
+                <div id="game-board" class="game-board w-full max-w-full"></div>
+            </div>
+
+            <!-- Bagian Bawah: Balok (Tidak akan menciut) -->
+            <div id="piece-container" class="w-full h-24 flex justify-around items-center flex-shrink-0 mt-4"></div>
+        </div>
+
+        <!-- ===== KUMPULAN MODAL (Tidak berubah) ===== -->
+        <div id="level-start-modal" class="modal invisible opacity-0 fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center">
+             <div class="bg-gradient-to-br from-[#1e3a8a] to-[#3b0764] rounded-2xl shadow-2xl p-6 text-center text-white transform scale-90 transition-transform w-11/12 max-w-sm">
+                <h2 id="level-start-title" class="font-baloo text-4xl font-extrabold mb-2">Level X</h2><p class="text-lg mb-4">Tujuan:</p><p id="level-start-objective" class="font-baloo text-2xl font-bold mb-6 text-yellow-300"></p>
+                <div class="flex gap-4"><button id="level-cancel-btn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-lg text-xl shadow-lg transition transform hover:scale-105">Batal</button><button id="level-confirm-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-xl shadow-lg transition transform hover:scale-105">Mulai</button></div>
+             </div>
+        </div>
+        <div id="level-result-modal" class="modal invisible opacity-0 fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center">
+             <div id="level-result-content" class="bg-gradient-to-br from-[#4A00E0] to-[#8E2DE2] rounded-2xl shadow-2xl p-8 text-center text-white transform scale-90 transition-transform w-11/12 max-w-sm">
+                <h2 id="level-result-title" class="font-baloo text-5xl font-extrabold mb-2"></h2><div id="level-result-stars" class="text-5xl text-yellow-300 my-4"></div><p id="level-result-message" class="text-lg mb-6"></p><button id="level-result-next-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-xl shadow-lg transition transform hover:scale-105">Lanjut</button>
+             </div>
+        </div>
+
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        const screens = { start: document.getElementById('start-screen'), adventureMap: document.getElementById('adventure-map-screen'), game: document.getElementById('game-screen'), };
+        const buttons = { startClassic: document.getElementById('start-classic-btn'), startAdventure: document.getElementById('start-adventure-btn'), backToMenu: document.getElementById('back-to-menu-btn'), backToMap: document.getElementById('back-to-map-btn'), levelCancel: document.getElementById('level-cancel-btn'), levelConfirm: document.getElementById('level-confirm-btn'), levelResultNext: document.getElementById('level-result-next-btn'), };
+        const gameElements = { container: document.getElementById('game-container'), board: document.getElementById('game-board'), pieceContainer: document.getElementById('piece-container'), hudLeft: document.getElementById('game-hud-left'), hudMain: document.getElementById('game-hud-main'), highScoreDisplay: document.getElementById('high-score-display'), levelGrid: document.getElementById('level-grid'), };
+        const modals = { levelStart: document.getElementById('level-start-modal'), levelResult: document.getElementById('level-result-modal'), };
+        const modalTexts = { levelStartTitle: document.getElementById('level-start-title'), levelStartObjective: document.getElementById('level-start-objective'), levelResultContent: document.getElementById('level-result-content'), levelResultTitle: document.getElementById('level-result-title'), levelResultStars: document.getElementById('level-result-stars'), levelResultMessage: document.getElementById('level-result-message'), }
+
+        const GRID_SIZE = 8;
+        let boardState = []; 
+        let currentPieces = []; 
+        let gameState = { mode: 'classic', score: 0, highScore: localStorage.getItem('blockBlastHighScore') || 0, currentLevel: 0, adventureProgress: JSON.parse(localStorage.getItem('blockBlastAdventureProgress')) || { unlockedLevel: 1 }, objective: {}, piecesPlaced: 0, };
+        let selectedPiece = null, ghostPiece = null, isDragging = false, offsetX = 0, offsetY = 0;
+
+        const LEVEL_DEFINITIONS = [ null, { id: 1, objective: { type: 'clear_ice', target: 5 }, boardSetup: (b) => { b[2][2]=b[2][3]=b[2][4]=b[5][3]=b[5][4] = { type: 'ice' }; return "Hancurkan 5 Blok Es!"; } }, { id: 2, objective: { type: 'collect_gems', target: 3 }, boardSetup: (b) => { b[0][0]=b[0][7]=b[7][4] = { type: 'gem' }; return "Kumpulkan 3 Permata!"; } }, { id: 3, objective: { type: 'clear_stone', target: 6 }, boardSetup: (b) => { b[3][1]=b[3][2]=b[3][3]=b[4][4]=b[4][5]=b[4][6] = { type: 'stone' }; return "Hancurkan 6 Blok Batu!"; } }, ];
+        const PIECE_DEFINITIONS = { 'I2':{s:[[1],[1]],c:'bg-cyan-500'},'I3':{s:[[1],[1],[1]],c:'bg-cyan-500'},'L':{s:[[1,0],[1,0],[1,1]],c:'bg-orange-500'},'L_rev':{s:[[0,1],[0,1],[1,1]],c:'bg-orange-500'},'T':{s:[[1,1,1],[0,1,0]],c:'bg-purple-600'},'S':{s:[[0,1,1],[1,1,0]],c:'bg-green-500'},'Z':{s:[[1,1,0],[0,1,1]],c:'bg-red-500'},'O':{s:[[1,1],[1,1]],c:'bg-yellow-400'},'dot':{s:[[1]],c:'bg-pink-500'},'corner':{s:[[1,1],[1,0]],c:'bg-blue-600'}};
+        const PIECE_KEYS = Object.keys(PIECE_DEFINITIONS).map(k => ({...PIECE_DEFINITIONS[k], shape: PIECE_DEFINITIONS[k].s, color: PIECE_DEFINITIONS[k].c}));
+        
+        function switchScreen(screenName) {
+            Object.values(screens).forEach(s => s.style.display = 'none');
+            screens[screenName].style.display = 'flex';
+        }
+
+        function showModal(modal, show = true) {
+            const modalDiv = modal.querySelector('div');
+            if (show) {
+                modal.classList.remove('invisible', 'opacity-0');
+                if(modalDiv) modalDiv.classList.remove('scale-90');
+            } else {
+                modal.classList.add('invisible', 'opacity-0');
+                if(modalDiv) modalDiv.classList.add('scale-90');
+            }
+        }
+
+        function setupClassicMode() {
+            gameState.mode = 'classic';
+            gameElements.hudLeft.innerHTML = `<i class="fas fa-crown text-yellow-400 text-2xl"></i><span id="high-score-display" class="text-yellow-400 font-bold text-xl leading-none">${gameState.highScore}</span>`;
+            gameElements.hudMain.id = "score-display";
+            gameElements.hudMain.textContent = '0';
+            buttons.backToMap.style.display = 'none';
+            startGame();
+        }
+        
+        function setupAdventureMode() {
+            renderAdventureMap();
+            switchScreen('adventureMap');
+        }
+        
+        function renderAdventureMap() {
+            gameElements.levelGrid.innerHTML = '';
+            for (let i = 1; i < LEVEL_DEFINITIONS.length; i++) {
+                const levelNode = document.createElement('button');
+                levelNode.className = 'level-node h-24 rounded-lg font-baloo text-4xl text-white shadow-md flex justify-center items-center relative';
+                levelNode.dataset.levelId = i;
+                if (i <= gameState.adventureProgress.unlockedLevel) {
+                    levelNode.classList.add('bg-green-600', 'hover:bg-green-500');
+                    levelNode.innerHTML = `${i}`;
+                } else {
+                    levelNode.classList.add('bg-gray-600', 'cursor-not-allowed');
+                    levelNode.innerHTML = `<i class="fas fa-lock"></i>`;
+                    levelNode.disabled = true;
+                }
+                gameElements.levelGrid.appendChild(levelNode);
+            }
+        }
+
+        function startAdventureLevel(levelId) {
+            gameState.mode = 'adventure';
+            gameState.currentLevel = levelId;
+            const level = LEVEL_DEFINITIONS[levelId];
+            gameState.objective = { ...level.objective, current: 0 };
+            gameState.piecesPlaced = 0;
+            gameElements.hudLeft.innerHTML = `<span class="text-white font-bold">Level ${levelId}</span>`;
+            gameElements.hudMain.id = "objective-display";
+            buttons.backToMap.style.display = 'block';
+            startGame(level.boardSetup);
+            updateObjectiveDisplay();
+        }
+
+        function startGame(boardSetupFn = null) {
+            initBoard(boardSetupFn);
+            generateNewPieces();
+            switchScreen('game');
+        }
+
+        function backToMap() {
+            renderAdventureMap();
+            switchScreen('adventureMap');
+        }
+
+        function initBoard(setupFn) {
+            gameElements.board.innerHTML = '';
+            boardState = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(0));
+            if (setupFn) setupFn(boardState);
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-cell';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    const obstacle = boardState[r][c];
+                    if (typeof obstacle === 'object' && obstacle !== null) {
+                        if (obstacle.type === 'ice') cell.classList.add('bg-blue-300', 'bg-opacity-40');
+                        if (obstacle.type === 'gem') cell.innerHTML = `<i class="obstacle-icon fas fa-gem"></i>`;
+                        if (obstacle.type === 'stone') cell.classList.add('bg-gray-700');
+                    }
+                    gameElements.board.appendChild(cell);
+                }
+            }
+        }
+
+        function generateNewPieces() {
+            playSound('new_pieces');
+            gameElements.pieceContainer.innerHTML = '';
+            currentPieces = [];
+            for (let i = 0; i < 3; i++) {
+                const pieceData = { ...PIECE_KEYS[Math.floor(Math.random() * PIECE_KEYS.length)], id: Date.now() + i };
+                currentPieces.push(pieceData);
+                const pieceElement = createPieceElement(pieceData);
+                const wrapper = document.createElement('div');
+                wrapper.classList.add('piece-wrapper');
+                wrapper.appendChild(pieceElement);
+                gameElements.pieceContainer.appendChild(wrapper);
+            }
+        }
+        
+        function createPieceElement(pieceData) {
+            const piece = document.createElement('div');
+            piece.className = 'piece';
+            piece.style.gridTemplateRows = `repeat(${pieceData.shape.length}, 1fr)`;
+            piece.style.gridTemplateColumns = `repeat(${pieceData.shape[0].length}, 1fr)`;
+            piece.dataset.pieceId = pieceData.id;
+            pieceData.shape.forEach(row => { row.forEach(cell => { const cD = document.createElement('div'); if(cell) cD.className = `piece-cell ${pieceData.color}`; piece.appendChild(cD); }); });
+            piece.addEventListener('mousedown', startDrag);
+            piece.addEventListener('touchstart', startDrag, { passive: false });
+            return piece;
+        }
+
+        function canPlacePiece(piece, startRow, startCol) {
+            if (!piece || startRow < 0 || startCol < 0) return false;
+            for (let r = 0; r < piece.shape.length; r++) {
+                for (let c = 0; c < piece.shape[0].length; c++) {
+                    if (piece.shape[r][c]) {
+                        const boardRow = startRow + r;
+                        const boardCol = startCol + c;
+                        if (boardRow >= GRID_SIZE || boardCol >= GRID_SIZE || boardState[boardRow][boardCol]) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+        
+        function placePiece(startRow, startCol) {
+            if (!canPlacePiece(selectedPiece, startRow, startCol)) return false;
+            gameState.piecesPlaced++;
+            selectedPiece.shape.forEach((row, r) => { row.forEach((cell, c) => { if (cell) boardState[startRow + r][startCol + c] = 1; }); });
+            if (gameState.mode === 'classic') gameState.score += selectedPiece.shape.flat().reduce((a, b) => a + b, 0);
+            playSound('place');
+            renderBoard();
+            const pieceIndex = currentPieces.findIndex(p => p.id === selectedPiece.id);
+            if(pieceIndex > -1) currentPieces.splice(pieceIndex, 1);
+            gameElements.pieceContainer.querySelector(`[data-piece-id='${selectedPiece.id}']`).parentElement.remove();
+            checkForLineClears();
+            if (currentPieces.length === 0) setTimeout(generateNewPieces, 450);
+            if (gameState.mode === 'classic' && isGameOver()) setTimeout(endGame, 500);
+            else if (gameState.mode === 'adventure') checkLevelStatus();
+            return true;
+        }
+        
+        function renderBoard() {
+             for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const cell = gameElements.board.children[r * GRID_SIZE + c];
+                    cell.className = 'grid-cell';
+                    cell.innerHTML = '';
+                    const content = boardState[r][c];
+                    if (typeof content === 'object' && content !== null) { 
+                        if (content.type === 'ice') cell.classList.add('bg-blue-300', 'bg-opacity-40');
+                        if (content.type === 'gem') cell.innerHTML = `<i class="obstacle-icon fas fa-gem"></i>`;
+                        if (content.type === 'stone') cell.classList.add('bg-gray-700');
+                    } else if (content === 1) { 
+                        cell.classList.add('bg-white'); 
+                    }
+                }
+            }
+        }
+        
+        function checkForLineClears() {
+            let linesToClear = { rows: [], cols: [] };
+            for (let r = 0; r < GRID_SIZE; r++) if (boardState[r].every(c => c === 1 || (typeof c === 'object' && c.type === 'stone'))) linesToClear.rows.push(r);
+            for (let c = 0; c < GRID_SIZE; c++) if (boardState.every(row => row[c] === 1 || (typeof row[c] === 'object' && row[c].type === 'stone'))) linesToClear.cols.push(c);
+            
+            if (linesToClear.rows.length > 0 || linesToClear.cols.length > 0) {
+                if (gameState.mode === 'adventure') {
+                    const checkObstacle = (r, c) => {
+                        const obstacle = boardState[r][c];
+                        if (typeof obstacle === 'object' && obstacle !== null) {
+                            if (obstacle.type === gameState.objective.type) gameState.objective.current++;
+                            if (obstacle.type === 'stone') return false; 
+                            boardState[r][c] = 0; 
+                        }
+                        return true;
+                    }
+                    let validRows = linesToClear.rows.filter(r => boardState[r].every((cell, c) => checkObstacle(r, c)));
+                    let validCols = linesToClear.cols.filter(c => boardState.every((row, r) => checkObstacle(r, c)));
+                    clearLines({ rows: validRows, cols: validCols });
+                } else {
+                     clearLines(linesToClear);
+                }
+            } else {
+                updateHud();
+            }
+        }
+        
+        function clearLines(lines) {
+            playSound('clear');
+            if (gameState.mode === 'classic') { let count = lines.rows.length + lines.cols.length; gameState.score += (10 * count) * count; }
+            const animateAndClear = (selectorFunc) => selectorFunc().forEach(el => el.classList.add('clearing'));
+            lines.rows.forEach(r => animateAndClear(() => Array.from(gameElements.board.children).filter(c => c.dataset.row == r)));
+            lines.cols.forEach(c => animateAndClear(() => Array.from(gameElements.board.children).filter(cell => cell.dataset.col == c)));
+            setTimeout(() => {
+                lines.rows.forEach(r => { boardState[r].fill(0); });
+                lines.cols.forEach(c => { boardState.forEach(row => { row[c] = 0; }); });
+                renderBoard();
+                updateHud();
+            }, 400);
+        }
+
+        function isGameOver() {
+             if (currentPieces.length === 0) return false;
+             for (const piece of currentPieces) for (let r = 0; r < GRID_SIZE; r++) for (let c = 0; c < GRID_SIZE; c++) if (canPlacePiece(piece, r, c)) return false;
+             return true;
+        }
+
+        function endGame() { playSound('gameover'); alert(`Game Over! Skor Akhir: ${gameState.score}`); setupClassicMode(); }
+        function checkLevelStatus() { if (gameState.objective.current >= gameState.objective.target) { levelComplete(); } else if (isGameOver()) { levelFail(); } }
+        function levelComplete() { playSound('clear'); if (gameState.currentLevel === gameState.adventureProgress.unlockedLevel) { gameState.adventureProgress.unlockedLevel++; localStorage.setItem('blockBlastAdventureProgress', JSON.stringify(gameState.adventureProgress)); } modalTexts.levelResultTitle.textContent = "Berhasil!"; modalTexts.levelResultContent.className = modalTexts.levelResultContent.className.replace(/from-\S+/, 'from-green-500').replace(/to-\S+/, 'to-blue-500'); modalTexts.levelResultStars.innerHTML = `<i class="fas fa-star"></i>`.repeat(3); modalTexts.levelResultMessage.textContent = "Kamu berhasil menyelesaikan level ini!"; buttons.levelResultNext.textContent = "Lanjut"; showModal(modals.levelResult); }
+        function levelFail() { playSound('gameover'); modalTexts.levelResultTitle.textContent = "Gagal!"; modalTexts.levelResultContent.className = modalTexts.levelResultContent.className.replace(/from-\S+/, 'from-red-700').replace(/to-\S+/, 'to-gray-800'); modalTexts.levelResultStars.innerHTML = `<i class="far fa-star"></i>`.repeat(3); modalTexts.levelResultMessage.textContent = "Jangan menyerah, coba lagi!"; buttons.levelResultNext.textContent = "Coba Lagi"; showModal(modals.levelResult); }
+        function updateHud() { if (gameState.mode === 'classic') { document.getElementById('score-display').textContent = gameState.score; if (gameState.score > gameState.highScore) { gameState.highScore = gameState.score; localStorage.setItem('blockBlastHighScore', gameState.highScore); document.getElementById('high-score-display').textContent = gameState.highScore; } } else if (gameState.mode === 'adventure') { updateObjectiveDisplay(); } }
+        function updateObjectiveDisplay() { const { type, current, target } = gameState.objective; let icon = ''; if (type === 'clear_ice') icon = '<i class="fas fa-snowflake mr-2"></i>'; if (type === 'collect_gems') icon = '<i class="fas fa-gem mr-2"></i>'; if (type === 'clear_stone') icon = '<i class="fas fa-th-large mr-2"></i>'; document.getElementById('objective-display').innerHTML = `${icon} ${current} / ${target}`; }
+        function startDrag(e){ e.preventDefault(); const targetPiece = e.currentTarget; const pieceId = parseInt(targetPiece.dataset.pieceId); selectedPiece = currentPieces.find(p => p.id === pieceId); if (!selectedPiece) return; isDragging = true; targetPiece.style.opacity = '0.5'; targetPiece.style.cursor = 'grabbing'; ghostPiece = targetPiece.cloneNode(true); ghostPiece.classList.add("dragging"); document.body.appendChild(ghostPiece); const rect = targetPiece.getBoundingClientRect(); const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX; const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY; offsetX = clientX - rect.left; offsetY = clientY - rect.top; moveGhostPiece(clientX, clientY); document.addEventListener("mousemove", dragMove); document.addEventListener("touchmove", dragMove, { passive: false }); document.addEventListener("mouseup", endDrag); document.addEventListener("touchend", endDrag); }
+        function dragMove(e){ if(!isDragging) return; e.preventDefault(); const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX; const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY; moveGhostPiece(clientX, clientY); highlightPlacement(); }
+        function endDrag(e){ if(!isDragging) return; isDragging = false; const { row, col } = getBoardCoordinatesFromGhost(); if (!placePiece(row, col)) { playSound("error"); } const originalPiece = gameElements.pieceContainer.querySelector(`[data-piece-id='${selectedPiece.id}']`); if (originalPiece) { originalPiece.style.opacity = '1'; originalPiece.style.cursor = 'grab'; } document.body.removeChild(ghostPiece); ghostPiece = null; selectedPiece = null; clearHighlights(); document.removeEventListener("mousemove", dragMove); document.removeEventListener("touchmove", dragMove); document.removeEventListener("mouseup", endDrag); document.removeEventListener("touchend", endDrag); }
+        function moveGhostPiece(x,y){ if(ghostPiece) { ghostPiece.style.left = `${x-offsetX}px`; ghostPiece.style.top = `${y-offsetY}px`; } }
+        function getBoardCoordinatesFromGhost(){ if(!ghostPiece) return {row: -1, col: -1}; const boardRect = gameElements.board.getBoundingClientRect(); const ghostRect = ghostPiece.getBoundingClientRect(); const cellWidth = boardRect.width / GRID_SIZE; const cellHeight = boardRect.height / GRID_SIZE; const relativeX = ghostRect.left - boardRect.left; const relativeY = ghostRect.top - boardRect.top; const col = Math.round(relativeX / cellWidth); const row = Math.round(relativeY / cellHeight); return { col, row }; }
+        function highlightPlacement(){ clearHighlights(); if(!selectedPiece) return; const {row, col} = getBoardCoordinatesFromGhost(); const isValid = canPlacePiece(selectedPiece, row, col); selectedPiece.shape.forEach((r, rowOffset) => { r.forEach((cell, colOffset) => { if (cell) { const boardRow = row + rowOffset; const boardCol = col + colOffset; if(boardRow < GRID_SIZE && boardCol < GRID_SIZE && boardRow >= 0 && boardCol >= 0){ const cellIndex = boardRow * GRID_SIZE + boardCol; const cellToHighlight = gameElements.board.children[cellIndex]; if (cellToHighlight) { cellToHighlight.classList.add(isValid ? "drag-over" : "invalid-placement"); } } } }); }); }
+        function clearHighlights(){ gameElements.board.querySelectorAll(".drag-over, .invalid-placement").forEach(e=>{ e.classList.remove("drag-over","invalid-placement") }); }
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type){ if(!audioContext || "suspended" === audioContext.state) { audioContext.resume(); } const oscillator = audioContext.createOscillator(); const gainNode = audioContext.createGain(); oscillator.connect(gainNode); gainNode.connect(audioContext.destination); let duration = .2; gainNode.gain.setValueAtTime(0, audioContext.currentTime); switch(type){ case "place": gainNode.gain.linearRampToValueAtTime(.4, audioContext.currentTime+.02); oscillator.type="sine"; oscillator.frequency.setValueAtTime(220, audioContext.currentTime); duration=.15; break; case "clear": duration=.4; [523.25, 659.25, 783.99, 1046.5].forEach((freq, index)=>{ const time = audioContext.currentTime + .1*index; gainNode.gain.setValueAtTime(.3, time); gainNode.gain.exponentialRampToValueAtTime(.01, time + .09); oscillator.frequency.setValueAtTime(freq, time); }); break; case "error": gainNode.gain.linearRampToValueAtTime(.3, audioContext.currentTime+.01); oscillator.type="square"; oscillator.frequency.setValueAtTime(110, audioContext.currentTime); duration=.1; break; case "gameover": gainNode.gain.linearRampToValueAtTime(.5, audioContext.currentTime+.01); oscillator.type="sawtooth"; oscillator.frequency.setValueAtTime(200, audioContext.currentTime); oscillator.frequency.exponentialRampToValueAtTime(80, audioContext.currentTime+.8); duration=.8; break; case "new_pieces": gainNode.gain.linearRampToValueAtTime(.3, audioContext.currentTime+.01); oscillator.type="triangle"; oscillator.frequency.setValueAtTime(600, audioContext.currentTime); oscillator.frequency.exponentialRampToValueAtTime(1200, audioContext.currentTime+.2); duration=.2; break; } oscillator.start(audioContext.currentTime); gainNode.gain.exponentialRampToValueAtTime(1e-5, audioContext.currentTime + duration); oscillator.stop(audioContext.currentTime + duration); }
+
+        // --- Event Listeners Awal ---
+        buttons.startClassic.addEventListener('click', setupClassicMode);
+        buttons.startAdventure.addEventListener('click', setupAdventureMode);
+        buttons.backToMenu.addEventListener('click', () => switchScreen('start'));
+        buttons.backToMap.addEventListener('click', backToMap);
+        gameElements.levelGrid.addEventListener('click', (e) => { const levelNode = e.target.closest('.level-node'); if (levelNode && !levelNode.disabled) { const levelId = parseInt(levelNode.dataset.levelId); const level = LEVEL_DEFINITIONS[levelId]; modalTexts.levelStartTitle.textContent = `Level ${levelId}`; modalTexts.levelStartObjective.innerHTML = level.boardSetup(Array(GRID_SIZE).fill(0).map(()=>Array(GRID_SIZE).fill(0))); buttons.levelConfirm.dataset.levelId = levelId; showModal(modals.levelStart); } });
+        buttons.levelCancel.addEventListener('click', () => showModal(modals.levelStart, false));
+        buttons.levelConfirm.addEventListener('click', (e) => { const levelId = parseInt(e.currentTarget.dataset.levelId); showModal(modals.levelStart, false); startAdventureLevel(levelId); });
+        buttons.levelResultNext.addEventListener('click', () => { showModal(modals.levelResult, false); if (modalTexts.levelResultTitle.textContent === "Berhasil!") { backToMap(); } else { startAdventureLevel(gameState.currentLevel); } });
+    });
+    </script>
+</body>
+</html>
